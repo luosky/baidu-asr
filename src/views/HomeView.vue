@@ -171,9 +171,20 @@ const run = async () => {
     console.log("running...")
     await fetchRecords()
     loading.value = true
-    // for (const record of todo.value) {
-      
-    // }
+    var summited = 0
+    for (const record of todo.value) {
+      let attachmentToken = record.fields[form.attachment][0].token
+      let attachmentURL = await table.getAttachmentUrl(attachmentToken)
+      console.log(`#${summited}, attachmentURL : ${attachmentURL}`)
+      const texts = (await audioFileToText(attachmentURL)).map(text => ({
+        type: IOpenSegmentType.Text,
+        text: text,
+      }))
+
+      table.setCellValue(form.text, record.recordId, texts)
+      summited += 1
+    }
+    /*
     todo.value.forEach(async record => {
       let attachmentToken = record.fields[form.attachment][0].token
       let attachmentURL = await table.getAttachmentUrl(attachmentToken)
@@ -185,6 +196,7 @@ const run = async () => {
 
       table.setCellValue(form.text, record.recordId, texts)
     })
+    */
     // loading.value = false
   }
 
