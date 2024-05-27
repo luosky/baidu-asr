@@ -66,7 +66,7 @@ a-space(direction="vertical" fill :size="10")
       url,
     })
 
-    return res.data.text
+    return [res.data.text]
   }
 
   const fetchRecords = async () => {
