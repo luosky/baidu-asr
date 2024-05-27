@@ -47,11 +47,11 @@ a-space(direction="vertical" fill :size="10")
   import { useStorage } from '@vueuse/core'
   import axios, { formToJSON } from 'axios'
   import { watch } from 'vue'
-  import i18n from '@/locale'
+  // import i18n from '@/locale'
 
   // data
   let table = {}
-  const { t } = i18n.global
+  // const { t } = i18n.global
   const pageSize = 5000
 
   const OCRLoading = ref(false)
