@@ -51,6 +51,12 @@ a-space(direction="vertical" fill :size="10")
     a-statistic(
       v-if="form.text && jobForm.result"
       animation
+      title="job 完成数"
+      show-group-separator
+      :value="jobDone.length")
+    a-statistic(
+      v-if="form.text && jobForm.result"
+      animation
       title="待识别录音数"
       show-group-separator
       :value="jobTodo.length")
@@ -92,8 +98,9 @@ a-space(direction="vertical" fill :size="10")
   
   const total = computed(() => records.value.filter(record => record.fields[form.attachment]))
   const todo = computed(() => records.value.filter(record => record.fields[form.attachment] && !record.fields[form.text]))
+  const jobDone = computed(() => records.value.filter(record => record.fields[form.text] && record.fields[jobForm.result] && record.fields[jobForm.result][0].text != "Running"))
   const jobTotal = computed(() => records.value.filter(record => record.fields[form.text]))
-  const jobTodo = computed(() => records.value.filter(record => record.fields[form.text] && !record.fields[jobForm.result]))
+  const jobTodo = computed(() => records.value.filter(record => record.fields[form.text] && (!record.fields[jobForm.result] || record.fields[jobForm.result][0].text == "Running")))
 
   
   // methods
@@ -105,18 +112,18 @@ a-space(direction="vertical" fill :size="10")
     return [res.data.text]
   }
 
-  const jobIDToText = async jobID => {
+  const jobIDToText = async job => {
     const res = await axios.post(jobForm.jobAPI, {
-      task_ids:[jobID],
+      job,
     })
-    const tasks = res.data.tasks_info
-    console.log(`tasks length : ${tasks.length}`)
-    const task = tasks[0]
+    const task = res.data
+    console.log(`task  : ${JSON.stringify(task)}`)
 
-    if (task.task_status == "Success") {
-      return ["任务未完成"]
+    if (task.status == "Success") {
+      return task.result
+    } else {
+      return [task.status]
     }
-    return [res.data.text]
   }
 
   const fetchRecords = async () => {
@@ -152,7 +159,7 @@ a-space(direction="vertical" fill :size="10")
   )
 
   watch(
-    () => fetching.value && !jobTodo.value.length,
+    () => fetching.value && !jobTodo.value.length && !(jobTotal.value.length - jobTodo.value.length - jobDone.value.length) ,
     async value => {
       if (value) {
         fetching.value = false
@@ -164,34 +171,46 @@ const run = async () => {
     console.log("running...")
     await fetchRecords()
     loading.value = true
+    // for (const record of todo.value) {
+      
+    // }
     todo.value.forEach(async record => {
       let attachmentToken = record.fields[form.attachment][0].token
       let attachmentURL = await table.getAttachmentUrl(attachmentToken)
 
       const texts = (await audioFileToText(attachmentURL)).map(text => ({
         type: IOpenSegmentType.Text,
-        text: text + '\n',
+        text: text,
       }))
 
       table.setCellValue(form.text, record.recordId, texts)
     })
+    // loading.value = false
   }
 
 const fetch_result = async () => {
   console.log(`fetching result..., form.text : ${form.text}`)
   await fetchRecords()
   fetching.value = true
+  var doneFetchingCount = 0
+  const needFetchingCount = jobTodo.value.length
   jobTodo.value.forEach(async record => {
     console.log(`record : ${JSON.stringify(record)}`)
-    const jobIDStr = record.fields[form.text]
+    const jobIDStr = record.fields[form.text][0].text
 
     const texts = (await jobIDToText(jobIDStr)).map(text => ({
       type: IOpenSegmentType.Text,
-      text: text + '\n',
+      text: text,
     }))
-
-    table.setCellValue(form.result, record.recordId, texts)
+    
+    table.setCellValue(jobForm.result, record.recordId, texts)
+    doneFetchingCount += 1
+    if (doneFetchingCount == needFetchingCount) {
+      fetching.value = false
+    }
   })
+  
+  
   }
   // lifecycle
   onMounted(async () => {
@@ -202,6 +221,7 @@ const fetch_result = async () => {
     })
     const view = await table.getViewById(selection.value.viewId)
     fieldMetaList.value = await view.getFieldMetaList()
+    fetchRecords()
   })
 </script>
 <style lang='stylus' rel='stylesheet/stylus' scoped>
