@@ -98,9 +98,9 @@ a-space(direction="vertical" fill :size="10")
   
   const total = computed(() => records.value.filter(record => record.fields[form.attachment]))
   const todo = computed(() => records.value.filter(record => record.fields[form.attachment] && !record.fields[form.text]))
-  const jobDone = computed(() => records.value.filter(record => record.fields[form.text] && record.fields[jobForm.result] && record.fields[jobForm.result][0].text != "Running"))
-  const jobTotal = computed(() => records.value.filter(record => record.fields[form.text]))
-  const jobTodo = computed(() => records.value.filter(record => record.fields[form.text] && (!record.fields[jobForm.result] || record.fields[jobForm.result][0].text == "Running")))
+  const jobDone = computed(() => records.value.filter(record => record.fields[form.text] && record.fields[jobForm.result] && record.fields[jobForm.result][0].text != "Running" && record.fields[jobForm.result][0].text != "Failure"))
+  const jobTotal = computed(() => records.value.filter(record => record.fields[form.text] && !record.fields[form.text][0].text.includes("创建任务失败")))
+  const jobTodo = computed(() => records.value.filter(record => (record.fields[form.text] && !record.fields[form.text][0].text.includes("创建任务失败")) && (!record.fields[jobForm.result] || record.fields[jobForm.result][0].text == "Running")))
 
   
   // methods
@@ -167,39 +167,87 @@ a-space(direction="vertical" fill :size="10")
       }
     }
   )
+const concurrency = 2
+const runConcurrent = async (concurrency, items, callback) => {
+console.log(`items size: ${items.length}, concurrency: ${concurrency}`)
+  const batches = [];
+
+  while (items.length > 0) {  
+    const batch = items.splice(0, concurrency);
+    console.log(`batch size: ${batch.length}`)
+    batches.push(batch);
+  }
+  console.log(`batches size : ${batches.length}`)
+
+  // 逐个执行每个小批次
+  var batch_no = 0
+  for (const batch of batches) {
+    batch_no += 1
+    console.log(`executing batch ${batch_no}/${batches.length}...`)
+    await Promise.all(batch.map(async item => {
+      await callback(item)
+    }))
+  }
+
+}
 
 const run = async () => {
-    console.log("running...")
-    await fetchRecords()
-    loading.value = true
-    var summited = 0
-    for (const record of todo.value) {
-      let attachmentToken = record.fields[form.attachment][0].token
-      let attachmentURL = await table.getAttachmentUrl(attachmentToken)
-      console.log(`#${summited}, attachmentURL : ${attachmentURL}`)
-      const texts = (await audioFileToText(attachmentURL)).map(text => ({
-        type: IOpenSegmentType.Text,
-        text: text,
-      }))
+  console.log("running1...")
+  await fetchRecords()
+  loading.value = true
+  var summited = 0
+  const records = todo.value
+  const getAttachmentUrlAndSubmitJob = async record => {
+    summited += 1
+    let attachmentToken = record.fields[form.attachment][0].token
+    let attachmentURL = await table.getAttachmentUrl(attachmentToken)
+    console.log(`#${summited}, attachmentURL : ${attachmentURL}`)
+    const texts = (await audioFileToText(attachmentURL)).map(text => ({
+      type: IOpenSegmentType.Text,
+      text: text,
+    }))
 
-      table.setCellValue(form.text, record.recordId, texts)
-      summited += 1
-    }
-    /*
-    todo.value.forEach(async record => {
-      let attachmentToken = record.fields[form.attachment][0].token
-      let attachmentURL = await table.getAttachmentUrl(attachmentToken)
-
-      const texts = (await audioFileToText(attachmentURL)).map(text => ({
-        type: IOpenSegmentType.Text,
-        text: text,
-      }))
-
-      table.setCellValue(form.text, record.recordId, texts)
-    })
-    */
-    // loading.value = false
+    table.setCellValue(form.text, record.recordId, texts)
   }
+
+  console.log(`records count : ${records.length}`)
+
+  await runConcurrent(concurrency, records, getAttachmentUrlAndSubmitJob)
+/*
+  const batches = [];
+
+  while (records.length > 0) {  
+    const batch = records.splice(0, concurrency);
+    console.log(`batch size: ${batch.length}`)
+    batches.push(batch);
+  }
+  console.log(`batches count : ${batches.length}`)
+
+  console.log("running3...")
+  // 逐个执行每个小批次
+  for (const batch of batches) {
+    console.log(`executing batch...`)
+    await Promise.all(batch.map(async record => {
+      await getAttachmentUrlAndSubmitJob(record)
+    }))
+  }
+*/
+
+  /*
+  todo.value.forEach(async record => {
+    let attachmentToken = record.fields[form.attachment][0].token
+    let attachmentURL = await table.getAttachmentUrl(attachmentToken)
+
+    const texts = (await audioFileToText(attachmentURL)).map(text => ({
+      type: IOpenSegmentType.Text,
+      text: text,
+    }))
+
+    table.setCellValue(form.text, record.recordId, texts)
+  })
+  */
+  // loading.value = false
+}
 
 const fetch_result = async () => {
   console.log(`fetching result..., form.text : ${form.text}`)
@@ -207,7 +255,7 @@ const fetch_result = async () => {
   fetching.value = true
   var doneFetchingCount = 0
   const needFetchingCount = jobTodo.value.length
-  jobTodo.value.forEach(async record => {
+  const fetch_record_result = async record => {
     console.log(`record : ${JSON.stringify(record)}`)
     const jobIDStr = record.fields[form.text][0].text
 
@@ -221,7 +269,8 @@ const fetch_result = async () => {
     if (doneFetchingCount == needFetchingCount) {
       fetching.value = false
     }
-  })
+  }
+  runConcurrent(concurrency, jobTodo.value, fetch_record_result)
   
   
   }
