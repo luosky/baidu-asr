@@ -117,11 +117,12 @@ a-space(direction="vertical" fill :size="10")
       job,
     })
     const task = res.data
-    console.log(`task  : ${JSON.stringify(task)}`)
 
     if (task.status == "Success") {
+      console.log(`task success, ${task.task_id}`)
       return task.result
     } else {
+      console.log(`task ${task.status}, ${task.task_id}`)
       return [task.status]
     }
   }
