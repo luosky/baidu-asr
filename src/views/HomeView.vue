@@ -2,12 +2,10 @@
 a-space(direction="vertical" fill :size="10")
   a-form.form(:model="form")
     a-space(direction="vertical" :size="10")
-      a-input(v-model="form.ocrAPI" placeholder="请先填写ASR API，配置方式见下方说明")
+      a-input(v-model="form.ocrAPI" placeholder="请先填写ASR API")
         template(#prefix)
           icon-robot
       .info
-        icon-info-circle
-        a(href="https://yellowduck.feishu.cn/docx/Q89SdbfZyoI50RxiwxlcTtP8nkb?from=from_copylink" target="_blank") 查看OCR接口配置文档
       a-select(v-if="form.ocrAPI" v-model="form.attachment" placeholder="选择录音文件列")
         template(#prefix)
           icon-file-audio
@@ -252,7 +250,7 @@ const run = async () => {
 const fetch_result = async () => {
   console.log(`fetching result..., form.text : ${form.text}`)
   await fetchRecords()
-  fetching.value = true
+  fetching.value = true 
   var doneFetchingCount = 0
   const needFetchingCount = jobTodo.value.length
   const fetch_record_result = async record => {
@@ -270,7 +268,7 @@ const fetch_result = async () => {
       fetching.value = false
     }
   }
-  runConcurrent(concurrency, jobTodo.value, fetch_record_result)
+  await runConcurrent(concurrency, jobTodo.value, fetch_record_result)
   
   
   }
